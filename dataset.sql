@@ -1,183 +1,173 @@
--- Drop all the tables if already exist
+-- Drop tables if they already exist
 BEGIN
-    FOR table_rec IN (SELECT table_name FROM user_tables WHERE table_name IN (
-        'PAYMENT', 'TRANSACTION', 'INVOICE', 'SERVICE_PARTS', 'SERVICE_RECORD', 
-        'APPOINTMENT', 'VEHICLE', 'SERVICE', 'CUSTOMER', 'INVENTORY_ITEM', 'USER_ACCOUNT'))
-    LOOP
-        EXECUTE IMMEDIATE 'DROP TABLE ' || table_rec.table_name || ' CASCADE CONSTRAINTS';
+    FOR t IN (
+        SELECT table_name
+        FROM user_tables
+        WHERE table_name IN (
+            'CUSTOMER', 'VEHICLE', 'SERVICE', 'SERVICE_RECORD', 'WORKER', 'APPOINTMENT', 
+            'SERVICE_INVENTORY', 'INVENTORY_ITEM', 'ADMIN', 'PAYMENT', 'INVOICE', 'AUDIT_LOG', 
+            'SUPPLIER', 'USER_ROLE'
+        )
+    ) LOOP
+        EXECUTE IMMEDIATE 'DROP TABLE ' || t.table_name || ' CASCADE CONSTRAINTS';
     END LOOP;
 END;
 /
 
--- CUSTOMER Table
-CREATE TABLE CUSTOMER (
-    Customer_id INT PRIMARY KEY,
-    First_name VARCHAR2(50),
-    Last_name VARCHAR2(50),
-    Email VARCHAR2(100),
-    Phone VARCHAR2(20),
-    Address CLOB
+-- Create Customer Table
+CREATE TABLE customer (
+    customer_id NUMBER PRIMARY KEY,
+    first_name VARCHAR2(100) NOT NULL,
+    last_name VARCHAR2(100) NOT NULL,
+    email VARCHAR2(150),
+    phone_number VARCHAR2(20),
+    address VARCHAR2(255),
+    role_id NUMBER, 
+    FOREIGN KEY (role_id) REFERENCES user_role(role_id)
 );
 
--- VEHICLE Table
-CREATE TABLE VEHICLE (
-    Vehicle_id INT PRIMARY KEY,
-    License_plate VARCHAR2(20),
-    Model VARCHAR2(50),
-    Make VARCHAR2(50),
-    Year INT,
-    Customer_id INT,
-    FOREIGN KEY (Customer_id) REFERENCES CUSTOMER(Customer_id)
+-- Create Vehicle Table
+CREATE TABLE vehicle (
+    vehicle_id NUMBER PRIMARY KEY,
+    customer_id NUMBER,
+    make VARCHAR2(50),
+    model VARCHAR2(50),
+    year NUMBER(4),
+    vin_number VARCHAR2(20),
+    license_plate VARCHAR2(20),
+    FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
 );
 
--- SERVICE Table
-CREATE TABLE SERVICE (
-    Service_id INT PRIMARY KEY,
-    Service_type VARCHAR2(50),
-    Description CLOB,
-    Duration INT
+-- Create Service Table
+CREATE TABLE service (
+    service_id NUMBER PRIMARY KEY,
+    service_name VARCHAR2(100) NOT NULL,
+    service_description VARCHAR2(255),
+    price NUMBER(10, 2),
+    duration NUMBER(5)
 );
 
--- SERVICE_RECORD Table
-CREATE TABLE SERVICE_RECORD (
-    Service_record_id INT PRIMARY KEY,
-    Vehicle_id INT,
-    Service_id INT,
-    Service_date DATE,
-    Mileage INT,
-    Service_notes CLOB,
-    FOREIGN KEY (Vehicle_id) REFERENCES VEHICLE(Vehicle_id),
-    FOREIGN KEY (Service_id) REFERENCES SERVICE(Service_id)
+
+-- Create Worker Table
+CREATE TABLE worker (
+    worker_id NUMBER PRIMARY KEY,
+    first_name VARCHAR2(100) NOT NULL,
+    last_name VARCHAR2(100) NOT NULL,
+    email VARCHAR2(150),
+    phone_number VARCHAR2(20),
+    service_id NUMBER, 
+    FOREIGN KEY (service_id) REFERENCES service(service_id)
+)
+
+-- Create Service Record Table
+CREATE TABLE service_record (
+    service_record_id NUMBER PRIMARY KEY,
+    vehicle_id NUMBER,
+    service_id NUMBER,
+    worker_id NUMBER,
+    service_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    service_status VARCHAR2(50),
+    FOREIGN KEY (vehicle_id) REFERENCES vehicle(vehicle_id),
+    FOREIGN KEY (service_id) REFERENCES service(service_id),
+    FOREIGN KEY (worker_id) REFERENCES worker(worker_id)
 );
 
--- INVENTORY_ITEM Table
-CREATE TABLE INVENTORY_ITEM (
-    Inventory_item_id INT PRIMARY KEY,
-    Item_name VARCHAR2(100),
-    Reorder_level INT
+-- Create Appointment Table
+CREATE TABLE appointment (
+    appointment_id NUMBER PRIMARY KEY,
+    customer_id NUMBER,
+    vehicle_id NUMBER,
+    service_id NUMBER,
+    appointment_date TIMESTAMP,
+    status VARCHAR2(50),
+    worker_id NUMBER,
+    FOREIGN KEY (customer_id) REFERENCES customer(customer_id),
+    FOREIGN KEY (vehicle_id) REFERENCES vehicle(vehicle_id),
+    FOREIGN KEY (service_id) REFERENCES service(service_id),
+    FOREIGN KEY (worker_id) REFERENCES worker(worker_id)
 );
 
--- SERVICE_PARTS Table
-CREATE TABLE SERVICE_PARTS (
-    Service_part_id INT PRIMARY KEY,
-    Service_record_id INT,
-    Inventory_item_id INT,
-    Quantity_used INT,
-    FOREIGN KEY (Service_record_id) REFERENCES SERVICE_RECORD(Service_record_id),
-    FOREIGN KEY (Inventory_item_id) REFERENCES INVENTORY_ITEM(Inventory_item_id)
+-- Create Supplier Table
+CREATE TABLE supplier (
+    supplier_id NUMBER PRIMARY KEY,
+    supplier_name VARCHAR2(100),
+    contact_person VARCHAR2(100),
+    contact_email VARCHAR2(150),
+    contact_phone VARCHAR2(20),
+    address VARCHAR2(255)
 );
 
--- APPOINTMENT Table
-CREATE TABLE APPOINTMENT (
-    Appointment_id INT PRIMARY KEY,
-    Customer_id INT,
-    Vehicle_id INT,
-    Service_id INT,
-    Appointment_date DATE,
-    Status VARCHAR2(50),
-    FOREIGN KEY (Customer_id) REFERENCES CUSTOMER(Customer_id),
-    FOREIGN KEY (Vehicle_id) REFERENCES VEHICLE(Vehicle_id),
-    FOREIGN KEY (Service_id) REFERENCES SERVICE(Service_id)
+
+CREATE TABLE inventory_item (
+    inventory_item_id NUMBER PRIMARY KEY,
+    supplier_id NUMBER,
+    quantity_in_stock NUMBER,
+    minimum_stock_level NUMBER,
+    FOREIGN KEY (supplier_id) REFERENCES supplier(supplier_id)
 );
 
--- INVOICE Table
-CREATE TABLE INVOICE (
-    Invoice_id INT PRIMARY KEY,
-    Appointment_id INT,
-    Total_amount NUMBER(10,2),
-    Service_date DATE,
-    Due_date DATE,
-    Status VARCHAR2(50),
-    FOREIGN KEY (Appointment_id) REFERENCES APPOINTMENT(Appointment_id)
+-- Create Service_inventory Table
+CREATE TABLE service_inventory (
+    service_record_id NUMBER,
+    inventory_item_id NUMBER,
+    quantity_used NUMBER, 
+    PRIMARY KEY (service_record_id, inventory_item_id),
+    FOREIGN KEY (service_record_id) REFERENCES service_record(service_record_id),
+    FOREIGN KEY (inventory_item_id) REFERENCES inventory_item(inventory_item_id)
 );
 
--- TRANSACTION Table
-CREATE TABLE TRANSACTION (
-    Transaction_id INT PRIMARY KEY,
-    Invoice_id INT,
-    Inventory_item_id INT,
-    Quantity_changed INT,
-    Transaction_date DATE,
-    Transaction_type VARCHAR2(50),
-    FOREIGN KEY (Invoice_id) REFERENCES INVOICE(Invoice_id),
-    FOREIGN KEY (Inventory_item_id) REFERENCES INVENTORY_ITEM(Inventory_item_id)
+
+-- Create Admin Table
+CREATE TABLE admin (
+    admin_id NUMBER PRIMARY KEY,
+    username VARCHAR2(100) NOT NULL,
+    password_hash VARCHAR2(255) NOT NULL,
+    email VARCHAR2(150),
+    phone_number VARCHAR2(20),
+    status VARCHAR2(50) DEFAULT 'Active',
+    role_id NUMBER,  -- Role of the admin
+    FOREIGN KEY (role_id) REFERENCES user_role(role_id)
 );
 
--- PAYMENT Table
-CREATE TABLE PAYMENT (
-    Payment_id INT PRIMARY KEY,
-    Payment_date DATE,
-    Amount NUMBER(10,2),
-    Payment_method VARCHAR2(50),
-    Payment_status VARCHAR2(50),
-    Invoice_id INT,
-    FOREIGN KEY (Invoice_id) REFERENCES INVOICE(Invoice_id)
+-- Create Payment Table
+CREATE TABLE payment (
+    payment_id NUMBER PRIMARY KEY,
+    appointment_id NUMBER,
+    amount_paid NUMBER(10, 2),
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    payment_method VARCHAR2(50),
+    status VARCHAR2(50),
+    FOREIGN KEY (appointment_id) REFERENCES appointment(appointment_id)
 );
 
--- USER Table
-CREATE TABLE USER_ACCOUNT (
-    User_id INT PRIMARY KEY,
-    Username VARCHAR2(50),
-    Password VARCHAR2(255),
-    Role VARCHAR2(50),
-    Email VARCHAR2(100)
+-- Create Invoice Table
+CREATE TABLE invoice (
+    invoice_id NUMBER PRIMARY KEY,
+    payment_id NUMBER,
+    invoice_number VARCHAR2(50) NOT NULL,
+    issue_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    total_amount NUMBER(10, 2),
+    status VARCHAR2(50),
+    FOREIGN KEY (payment_id) REFERENCES payment(payment_id)
 );
 
--- Insert sample customers
-INSERT INTO CUSTOMER (Customer_id, First_name, Last_name, Email, Phone, Address) 
-VALUES (1, 'John', 'Doe', 'john.doe@example.com', '555-1234', '123 Main St, Toronto');
+-- Create Audit Log Table
+CREATE TABLE audit_log (
+    log_id NUMBER PRIMARY KEY,
+    user_id NUMBER,
+    action_type VARCHAR2(50),
+    action_details VARCHAR2(255),
+    action_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR2(50),
+    FOREIGN KEY (user_id) REFERENCES admin(admin_id)
+);
 
-INSERT INTO CUSTOMER (Customer_id, First_name, Last_name, Email, Phone, Address) 
-VALUES (2, 'Jane', 'Smith', 'jane.smith@example.com', '555-5678', '456 Elm St, Mississauga');
 
-INSERT INTO CUSTOMER (Customer_id, First_name, Last_name, Email, Phone, Address) 
-VALUES (3, 'Michael', 'Brown', 'michael.brown@example.com', '555-8765', '789 Oak St, Brampton');
+-- Create User Role Table
+CREATE TABLE user_role (
+    role_id NUMBER PRIMARY KEY,
+    role_name VARCHAR2(100),
+    role_description VARCHAR2(255)
+);
 
--- Insert user accounts (Admin & Mechanics)
-INSERT INTO USER_ACCOUNT (User_id, Username, Password, Role, Email) 
-VALUES (1, 'admin', 'admin@123', 'Admin', 'admin@example.com');
-
-INSERT INTO USER_ACCOUNT (User_id, Username, Password, Role, Email) 
-VALUES (2, 'mechanic1', 'mech@123', 'Mechanic', 'mechanic1@example.com');
-
-INSERT INTO USER_ACCOUNT (User_id, Username, Password, Role, Email) 
-VALUES (3, 'mechanic2', 'mech@123', 'Mechanic', 'mechanic2@example.com');
-
--- Insert available services
-INSERT INTO SERVICE (Service_id, Service_type, Description, Duration) 
-VALUES (1, 'Oil Change', 'Complete oil and filter replacement', 60);
-
-INSERT INTO SERVICE (Service_id, Service_type, Description, Duration) 
-VALUES (2, 'Brake Inspection', 'Brake pad and disc check-up', 45);
-
-INSERT INTO SERVICE (Service_id, Service_type, Description, Duration) 
-VALUES (3, 'Engine Diagnosis', 'Engine performance check and tuning', 90);
-
-INSERT INTO SERVICE (Service_id, Service_type, Description, Duration) 
-VALUES (4, 'Tire Rotation', 'Tire rotation and air pressure check', 30);
-
-INSERT INTO SERVICE (Service_id, Service_type, Description, Duration) 
-VALUES (5, 'Battery Replacement', 'Battery check and replacement if needed', 20);
-
--- Insert inventory items (Spare parts)
-INSERT INTO INVENTORY_ITEM (Inventory_item_id, Item_name, Reorder_level) 
-VALUES (1, 'Engine Oil', 10);
-
-INSERT INTO INVENTORY_ITEM (Inventory_item_id, Item_name, Reorder_level) 
-VALUES (2, 'Brake Pads', 15);
-
-INSERT INTO INVENTORY_ITEM (Inventory_item_id, Item_name, Reorder_level) 
-VALUES (3, 'Air Filter', 20);
-
-INSERT INTO INVENTORY_ITEM (Inventory_item_id, Item_name, Reorder_level) 
-VALUES (4, 'Car Battery', 5);
-
-INSERT INTO INVENTORY_ITEM (Inventory_item_id, Item_name, Reorder_level) 
-VALUES (5, 'Spark Plugs', 25);
-
-INSERT INTO INVENTORY_ITEM (Inventory_item_id, Item_name, Reorder_level) 
-VALUES (6, 'Tires', 8);
-
--- Commit the changes
-COMMIT;
 
