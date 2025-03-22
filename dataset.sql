@@ -14,6 +14,14 @@ BEGIN
 END;
 /
 
+
+-- Create User Role Table
+CREATE TABLE user_role (
+    role_id NUMBER PRIMARY KEY,
+    role_name VARCHAR2(100),
+    role_description VARCHAR2(255)
+);
+
 -- Create Customer Table
 CREATE TABLE customer (
     customer_id NUMBER PRIMARY KEY,
@@ -57,7 +65,7 @@ CREATE TABLE worker (
     phone_number VARCHAR2(20),
     service_id NUMBER, 
     FOREIGN KEY (service_id) REFERENCES service(service_id)
-)
+);
 
 -- Create Service Record Table
 CREATE TABLE service_record (
@@ -163,11 +171,6 @@ CREATE TABLE audit_log (
 );
 
 
--- Create User Role Table
-CREATE TABLE user_role (
-    role_id NUMBER PRIMARY KEY,
-    role_name VARCHAR2(100),
-    role_description VARCHAR2(255)
-);
+
 
 
