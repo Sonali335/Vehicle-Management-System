@@ -1,0 +1,158 @@
+--INVENTORY MANAGEMENT
+--Sequences for Primary Keys
+-- Sequence for Supplier IDs
+CREATE SEQUENCE supplier_seq START WITH 1 INCREMENT BY 1;
+-- Sequence for Inventory Item IDs
+CREATE SEQUENCE inventory_item_seq START WITH 1 INCREMENT BY 1;
+--Sequence used to generate the log_id
+CREATE SEQUENCE audit_log_seq START WITH 1 INCREMENT BY 1 NOCACHE;
+
+
+-- Insert data into the supplier table
+INSERT INTO supplier (supplier_id, supplier_name, contact_person, contact_email, contact_phone, address)
+VALUES (101, 'Auto Parts Co.', 'John Doe', 'john.doe@autoparts.com', '555-1234', '123 Auto St, City');
+
+INSERT INTO supplier (supplier_id, supplier_name, contact_person, contact_email, contact_phone, address)
+VALUES (102, 'Car Fixers Inc.', 'Jane Smith', 'jane.smith@carfixers.com', '555-5678', '456 Fix Rd, City');
+
+INSERT INTO supplier (supplier_id, supplier_name, contact_person, contact_email, contact_phone, address)
+VALUES (103, 'Spare Parts Ltd.', 'Robert Brown', 'robert.brown@spareparts.com', '555-8765', '789 Spare Ave, City');
+
+--Insertion into inventory table
+    INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+    VALUES (inventory_item_seq.NEXTVAL, 101, 50, 10); -- Supplier ID 1
+
+    INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+    VALUES (inventory_item_seq.NEXTVAL, 102, 30, 5);  -- Supplier ID 2
+
+    INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+    VALUES (inventory_item_seq.NEXTVAL, 103, 100, 20); -- Supplier ID 3
+
+    INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+    VALUES (inventory_item_seq.NEXTVAL, 101, 5, 2); -- Low stock item
+
+    INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+    VALUES (inventory_item_seq.NEXTVAL, 102, 75, 15); -- Supplier ID 4
+
+    INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+    VALUES (inventory_item_seq.NEXTVAL, 103, 40, 8);
+
+    INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+    VALUES (inventory_item_seq.NEXTVAL, 103, 90, 30);
+
+    INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+    VALUES (inventory_item_seq.NEXTVAL,103, 20, 5);
+
+    INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+    VALUES (inventory_item_seq.NEXTVAL, 101, 10, 3);
+
+    INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+    VALUES (inventory_item_seq.NEXTVAL, 102, 200, 50);
+
+
+
+--Procedure to Add Inventory Items
+CREATE OR REPLACE PROCEDURE add_inventory_item(
+    p_supplier_id NUMBER,
+    p_quantity NUMBER,
+    p_min_stock NUMBER
+) AS
+    v_new_id NUMBER;
+BEGIN
+    -- Generate new Inventory Item ID
+    SELECT inventory_item_seq.NEXTVAL INTO v_new_id FROM dual;
+
+    -- Insert the new inventory item
+    INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+    VALUES (v_new_id, p_supplier_id, p_quantity, p_min_stock);
+
+    COMMIT;
+    DBMS_OUTPUT.PUT_LINE('Inventory item added successfully with ID: ' || v_new_id);
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+END;
+/
+
+
+--Procedure to Update Stock Levels
+CREATE OR REPLACE PROCEDURE update_stock(
+    p_inventory_item_id NUMBER,
+    p_new_quantity NUMBER
+) AS
+BEGIN
+    -- Update the inventory quantity
+    UPDATE inventory_item
+    SET quantity_in_stock = p_new_quantity
+    WHERE inventory_item_id = p_inventory_item_id;
+
+    COMMIT;
+    DBMS_OUTPUT.PUT_LINE('Stock updated successfully for item ID: ' || p_inventory_item_id);
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+END;
+/
+
+
+-- Trigger for Low Inventory Alerts  
+CREATE OR REPLACE TRIGGER trg_low_stock_alert
+AFTER UPDATE ON inventory_item
+FOR EACH ROW
+WHEN (NEW.quantity_in_stock < NEW.minimum_stock_level)
+BEGIN
+    INSERT INTO audit_log (log_id, user_id, action_type, action_details, action_date, status)
+    VALUES (
+        audit_log_seq.NEXTVAL,  
+        NULL, -- System-generated alert
+        'LOW_STOCK_ALERT',
+        'Inventory Item ID ' || :NEW.inventory_item_id || ' is below minimum stock level!',
+        SYSDATE,
+        'Active'
+    );
+
+    DBMS_OUTPUT.PUT_LINE('ALERT: Inventory Item ID ' || :NEW.inventory_item_id || ' is running low on stock!');
+END;
+/
+
+  
+--  Function to Check Stock Levels  
+CREATE OR REPLACE FUNCTION check_stock_level(
+    p_inventory_item_id NUMBER
+) RETURN NUMBER AS
+    v_stock NUMBER;
+BEGIN
+    SELECT quantity_in_stock INTO v_stock
+    FROM inventory_item
+    WHERE inventory_item_id = p_inventory_item_id;
+
+    RETURN v_stock;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RETURN -1; -- Item not found
+    WHEN OTHERS THEN
+        RETURN -2; -- Error occurred
+END;
+/
+
+
+--Testing the Inventory Management Module  
+--1. Adding a new inventory item
+SET SERVEROUTPUT ON;
+BEGIN
+    add_inventory_item(101, 50, 10); -- Supplier ID 1, 50 in stock, min level 10
+END;
+/
+
+SET SERVEROUTPUT ON;
+--2. Updating stock levels
+BEGIN
+    update_stock(13, 1); -- Setting stock to 5 (below min level to trigger alert)
+END;
+/
+
+--3. Checking stock levels  
+SELECT check_stock_level(17) FROM dual;
+
