@@ -33,7 +33,8 @@ CREATE TABLE customer (
     role_id NUMBER, 
     FOREIGN KEY (role_id) REFERENCES user_role(role_id)
 );
-
+ALTER TABLE customer
+ADD password_hash VARCHAR2(255) NOT NULL;
 -- Create Vehicle Table
 CREATE TABLE vehicle (
     vehicle_id NUMBER PRIMARY KEY,
