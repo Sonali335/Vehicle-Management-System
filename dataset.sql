@@ -67,6 +67,12 @@ CREATE TABLE worker (
     service_id NUMBER, 
     FOREIGN KEY (service_id) REFERENCES service(service_id)
 );
+ALTER TABLE worker ADD (
+    password_hash VARCHAR2(255), 
+    role_id NUMBER
+);
+
+ALTER TABLE worker ADD CONSTRAINT fk_worker_role FOREIGN KEY (role_id) REFERENCES user_role(role_id);
 
 -- Create Service Record Table
 CREATE TABLE service_record (
@@ -170,6 +176,12 @@ CREATE TABLE audit_log (
     status VARCHAR2(50),
     FOREIGN KEY (user_id) REFERENCES admin(admin_id)
 );
+ALTER TABLE audit_log ADD (
+    user_type VARCHAR2(20) CHECK (user_type IN ('Customer', 'Worker', 'Admin')), 
+    role_id NUMBER
+);
+
+ALTER TABLE audit_log ADD CONSTRAINT fk_auditlog_role FOREIGN KEY (role_id) REFERENCES user_role(role_id) ON DELETE CASCADE;
 
 
 
