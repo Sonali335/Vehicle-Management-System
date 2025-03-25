@@ -1,0 +1,183 @@
+1. User & Role Management Structure
+Tables Used:
+user_role: Defines different roles (Customer, Worker, Admin).
+customer, worker, admin: Stores details of respective users.
+audit_log: Logs login activities (successful & failed).
+user_logins: Temporary table for login attempts.
+
+2. User Registration & Role Assignment
+Workflow Steps:
+New User Registration
+A new Customer, Worker, or Admin registers.
+The system assigns a role_id from user_role.
+Storing User Credentials Securely
+Passwords are stored hashed in their respective tables (admin, customer, worker).
+
+CREATE OR REPLACE PROCEDURE register_user(
+    p_user_type VARCHAR2,
+    p_first_name VARCHAR2,
+    p_last_name VARCHAR2,
+    p_email VARCHAR2,
+    p_phone VARCHAR2,
+    p_password_hash VARCHAR2
+) AS
+    v_role_id NUMBER;
+    v_user_id NUMBER;
+BEGIN
+    -- Assign Role ID
+    SELECT role_id INTO v_role_id FROM user_role WHERE role_name = p_user_type;
+    
+    -- Insert into respective tables
+    IF p_user_type = 'Customer' THEN
+        INSERT INTO customer (customer_id, first_name, last_name, email, phone_number, password_hash, role_id)
+        VALUES (customer_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone, p_password_hash, v_role_id)
+        RETURNING customer_id INTO v_user_id;
+        
+    ELSIF p_user_type = 'Worker' THEN
+        INSERT INTO worker (worker_id, first_name, last_name, email, phone_number, password_hash, role_id)
+        VALUES (worker_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone, p_password_hash, v_role_id)
+        RETURNING worker_id INTO v_user_id;
+        
+    ELSIF p_user_type = 'Admin' THEN
+        INSERT INTO admin (admin_id, username, password_hash, email, phone_number, role_id)
+        VALUES (admin_seq.NEXTVAL, p_first_name, p_password_hash, p_email, p_phone, v_role_id)
+        RETURNING admin_id INTO v_user_id;
+    END IF;
+
+    COMMIT;
+    DBMS_OUTPUT.PUT_LINE('User Registered Successfully with ID: ' || v_user_id);
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+END;
+/
+
+
+3. User Login Process
+Workflow Steps:
+User enters email & password.
+System verifies credentials from respective table (customer, worker, admin).
+If successful:
+User gets access based on role_id.
+System logs successful login in audit_log.
+If failed:
+System logs failed attempt in audit_log.
+Example Login Function
+CREATE OR REPLACE FUNCTION user_login(
+    p_email VARCHAR2,
+    p_password_hash VARCHAR2
+) RETURN VARCHAR2 AS
+    v_user_id NUMBER;
+    v_user_type VARCHAR2(20);
+    v_role_id NUMBER;
+    v_count NUMBER;
+BEGIN
+    -- Check Customer Login
+    SELECT COUNT(*), customer_id, 'Customer', role_id INTO v_count, v_user_id, v_user_type, v_role_id
+    FROM customer WHERE email = p_email AND password_hash = p_password_hash
+    GROUP BY customer_id, role_id;
+
+    -- Check Worker Login
+    IF v_count = 0 THEN
+        SELECT COUNT(*), worker_id, 'Worker', role_id INTO v_count, v_user_id, v_user_type, v_role_id
+        FROM worker WHERE email = p_email AND password_hash = p_password_hash
+        GROUP BY worker_id, role_id;
+    END IF;
+
+    -- Check Admin Login
+    IF v_count = 0 THEN
+        SELECT COUNT(*), admin_id, 'Admin', role_id INTO v_count, v_user_id, v_user_type, v_role_id
+        FROM admin WHERE email = p_email AND password_hash = p_password_hash
+        GROUP BY admin_id, role_id;
+    END IF;
+
+    -- Insert into login tracking table
+    INSERT INTO user_logins (login_id, user_id, user_type, role_id, login_status)
+    VALUES (user_login_seq.NEXTVAL, v_user_id, v_user_type, v_role_id, CASE WHEN v_count > 0 THEN 'SUCCESS' ELSE 'FAILED' END);
+
+    -- Return login status
+    IF v_count > 0 THEN
+        RETURN 'SUCCESS';
+    ELSE
+        RETURN 'FAILED';
+    END IF;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RETURN 'FAILED';
+    WHEN OTHERS THEN
+        RETURN 'ERROR: ' || SQLERRM;
+END;
+/
+
+
+4. Audit Logging for User Activities
+Login Attempt Trigger (Success & Failure)
+CREATE OR REPLACE TRIGGER trg_log_user_activity
+AFTER INSERT ON user_logins
+FOR EACH ROW
+BEGIN
+    INSERT INTO audit_log (log_id, user_id, user_type, role_id, action_type, action_details, action_date, status)
+    VALUES (
+        audit_log_seq.NEXTVAL,
+        :NEW.user_id,
+        :NEW.user_type,
+        :NEW.role_id,
+        CASE 
+            WHEN :NEW.login_status = 'SUCCESS' THEN 'LOGIN'
+            ELSE 'FAILED_LOGIN'
+        END,
+        'User ' || :NEW.user_id || ' (' || :NEW.user_type || ') attempted to log in',
+        SYSDATE,
+        :NEW.login_status
+    );
+END;
+/
+
+Role Changes (Admin Only)
+CREATE OR REPLACE TRIGGER trg_log_role_changes
+AFTER UPDATE ON user_role
+FOR EACH ROW
+BEGIN
+    INSERT INTO audit_log (log_id, user_id, user_type, role_id, action_type, action_details, action_date, status)
+    VALUES (
+        audit_log_seq.NEXTVAL,
+        NULL, 
+        'Admin', 
+        :OLD.role_id, 
+        'ROLE_UPDATE',
+        'Role ' || :OLD.role_name || ' changed to ' || :NEW.role_name,
+        SYSDATE,
+        'Active'
+    );
+END;
+/
+
+5. Role-Based Access Control
+Each user has a role_id linked to user_role.
+Stored Procedures Control Access:
+Customers can book services, view invoices.
+Workers can update service records.
+Admins can manage inventory, payments, and users
+Example Procedure for Access Control
+CREATE OR REPLACE PROCEDURE check_user_access(
+    p_user_id NUMBER,
+    p_required_role VARCHAR2
+) AS
+    v_user_role VARCHAR2(100);
+BEGIN
+    -- Get the role of the user
+    SELECT role_name INTO v_user_role FROM user_role WHERE role_id = 
+        (SELECT role_id FROM customer WHERE customer_id = p_user_id
+         UNION ALL
+         SELECT role_id FROM worker WHERE worker_id = p_user_id
+         UNION ALL
+         SELECT role_id FROM admin WHERE admin_id = p_user_id);
+
+    -- Validate Access
+    IF v_user_role != p_required_role THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Access Denied: Insufficient Permissions.');
+    END IF;
+END;
+/
+
