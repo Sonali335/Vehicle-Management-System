@@ -159,7 +159,9 @@ BEGIN
 END;
 /
 
-5. Role-Based Access Control
+5. Role-Based Access Control(In Role-Based Access Control (RBAC), 
+we define permissions based on the user's role (e.g., Customer, Worker, Admin), 
+and procedures and functions are the mechanisms through which we will enforce these permissions.)
 Each user has a role_id linked to user_role.
 Stored Procedures Control Access:
 Customers can book services, view invoices.
