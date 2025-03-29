@@ -13,39 +13,41 @@ The system assigns a role_id from user_role.
 Storing User Credentials Securely
 Passwords are stored hashed in their respective tables (admin, customer, worker).
 
+
+-- Sequence for Customer IDs
+CREATE SEQUENCE customer_seq START WITH 1 INCREMENT BY 1;
+
+-- Sequence for Worker IDs
+CREATE SEQUENCE worker_seq START WITH 1 INCREMENT BY 1;
+
+-- Sequence for Admin IDs
+CREATE SEQUENCE admin_seq START WITH 1 INCREMENT BY 1;
+
+
 CREATE OR REPLACE PROCEDURE register_user(
-    p_user_type VARCHAR2,
-    p_first_name VARCHAR2,
-    p_last_name VARCHAR2,
-    p_email VARCHAR2,
-    p_phone VARCHAR2,
+    p_user_type    VARCHAR2,
+    p_first_name   VARCHAR2,
+    p_last_name    VARCHAR2,
+    p_email        VARCHAR2,
+    p_phone        VARCHAR2,
     p_password_raw VARCHAR2
 ) AS
     v_role_id NUMBER;
     v_user_id NUMBER;
-    v_password_hash VARCHAR2(255);
 BEGIN
-    -- Assign Role ID
+    -- Assign Role ID based on the user type (Customer, Worker)
     SELECT role_id INTO v_role_id FROM user_role WHERE role_name = p_user_type;
 
-    -- Hash password securely
-    v_password_hash := DBMS_CRYPTO.HASH(UTL_RAW.CAST_TO_RAW(p_password_raw), 3); -- SHA-256 hashing
-
-    -- Insert into respective tables
+    -- Insert into respective tables based on user type
     IF p_user_type = 'Customer' THEN
         INSERT INTO customer (customer_id, first_name, last_name, email, phone_number, password_hash, role_id)
-        VALUES (customer_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone, v_password_hash, v_role_id)
+        VALUES (customer_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone, p_password_raw, v_role_id)
         RETURNING customer_id INTO v_user_id;
 
     ELSIF p_user_type = 'Worker' THEN
         INSERT INTO worker (worker_id, first_name, last_name, email, phone_number, password_hash, role_id)
-        VALUES (worker_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone, v_password_hash, v_role_id)
+        VALUES (worker_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone, p_password_raw, v_role_id)
         RETURNING worker_id INTO v_user_id;
-
-    ELSIF p_user_type = 'Admin' THEN
-        INSERT INTO admin (admin_id, username, password_hash, email, phone_number, role_id)
-        VALUES (admin_seq.NEXTVAL, p_first_name, v_password_hash, p_email, p_phone, v_role_id)
-        RETURNING admin_id INTO v_user_id;
     END IF;
 
     COMMIT;
@@ -54,6 +56,14 @@ EXCEPTION
     WHEN OTHERS THEN
         ROLLBACK;
         DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+END;
+/
+BEGIN 
+    REGISTER_USER('Customer', 'Kiran', 'Kaur', 'kiran@gmail.com', '999999999', 'my_password'); 
+END;
+/
+BEGIN 
+    REGISTER_USER('Worker', 'Aamn', 'Kaur', 'aamn@gmail.com', '22222222', 'pass3'); 
 END;
 /
 
