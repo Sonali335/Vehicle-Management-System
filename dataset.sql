@@ -29,7 +29,7 @@ CREATE TABLE customer (
     email VARCHAR2(150),
     phone_number VARCHAR2(20),
     address VARCHAR2(255),
-    password_hash VARCHAR2(255) NOT NULL,  -- Keep this one
+    password_hash VARCHAR2(255) NOT NULL,  
     role_id NUMBER,
     FOREIGN KEY (role_id) REFERENCES user_role(role_id)
 );
