@@ -11,6 +11,11 @@ CREATE SEQUENCE worker_seq START WITH 1 INCREMENT BY 1;
 -- Sequence for Admin IDs
 CREATE SEQUENCE admin_seq START WITH 1 INCREMENT BY 1;
 
+-- Sequence for Audit_log_id
+CREATE SEQUENCE audit_log_seq START WITH 1 INCREMENT BY 1;
+
+-- Sequence for vehicle id
+CREATE SEQUENCE vehicle_seq START WITH 1 INCREMENT BY 1;
 
 CREATE OR REPLACE PROCEDURE register_user(
     p_user_type    VARCHAR2,
