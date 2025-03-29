@@ -2,8 +2,6 @@
 
 *User Registration & Role Assignment
 
-
-
 -- Sequence for Customer IDs
 CREATE SEQUENCE customer_seq START WITH 1 INCREMENT BY 1;
 
@@ -205,6 +203,18 @@ EXCEPTION
         DBMS_OUTPUT.PUT_LINE('An error occurred: ' || SQLERRM);
 END;
 /
+set serveroutput on;
+BEGIN
+  user_login_and_select_service('kiran@gmail.com', 'my_password', 'Customer', 3);
+END;
+/
+set serveroutput on;
+BEGIN
+  user_login_and_select_service('sarahc@email.com', 'work_2', 'Worker', NULL);
+END;
+/
+
+
 
 
 
