@@ -48,9 +48,6 @@ VALUES (103, 'Spare Parts Ltd.', 'Robert Brown', 'robert.brown@spareparts.com', 
 
     INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
     VALUES (inventory_item_seq.NEXTVAL, 102, 200, 50);
-
-
-
 --Procedure to Add Inventory Items
 CREATE OR REPLACE PROCEDURE add_inventory_item(
     p_supplier_id NUMBER,
@@ -103,14 +100,15 @@ AFTER UPDATE ON inventory_item
 FOR EACH ROW
 WHEN (NEW.quantity_in_stock < NEW.minimum_stock_level)
 BEGIN
-    INSERT INTO audit_log (log_id, user_id, action_type, action_details, action_date, status)
+    INSERT INTO audit_log (log_id, action_type, action_details, action_date, status,user_type,role_id)
     VALUES (
         audit_log_seq.NEXTVAL,  
-        NULL, -- System-generated alert
         'LOW_STOCK_ALERT',
         'Inventory Item ID ' || :NEW.inventory_item_id || ' is below minimum stock level!',
-        SYSDATE,
-        'Active'
+         SYSDATE,
+        'Active',
+        'Customer', 
+        NULL 
     );
 
     DBMS_OUTPUT.PUT_LINE('ALERT: Inventory Item ID ' || :NEW.inventory_item_id || ' is running low on stock!');
@@ -142,17 +140,20 @@ END;
 --1. Adding a new inventory item
 SET SERVEROUTPUT ON;
 BEGIN
-    add_inventory_item(101, 50, 10); -- Supplier ID 1, 50 in stock, min level 10
+    add_inventory_item(2, 40, 10); -- Supplier ID 1, 50 in stock, min level 10
 END;
 /
 
+
+
+
+SELECT * FROM inventory_item;
 SET SERVEROUTPUT ON;
 --2. Updating stock levels
 BEGIN
-    update_stock(13, 1); -- Setting stock to 5 (below min level to trigger alert)
+    update_stock(41, 9); -- Setting stock to 5 (below min level to trigger alert)
 END;
 /
 
 --3. Checking stock levels  
 SELECT check_stock_level(17) FROM dual;
-
