@@ -57,134 +57,154 @@ BEGIN
 END;
 /
 
-* User Login Process
-CREATE OR REPLACE PROCEDURE login (
-    p_email       VARCHAR2,
-    p_password_raw VARCHAR2
+
+
+
+* login and appointments
+CREATE OR REPLACE PROCEDURE user_login_and_select_service (
+    p_username VARCHAR2,
+    p_password_raw VARCHAR2,
+    p_role_name VARCHAR2,
+    p_service_id NUMBER -- Input service ID
 ) AS
     v_user_id NUMBER;
-    v_user_type VARCHAR2(20);
     v_role_id NUMBER;
     v_count NUMBER;
-    v_login_status VARCHAR2(10);
+    v_error_message VARCHAR2(255);
+    v_action_status VARCHAR2(10);
+    v_login_time TIMESTAMP := SYSTIMESTAMP;
+    v_service_exists NUMBER;
+    v_vehicle_id NUMBER;
+    v_appointment_id NUMBER;
+    v_worker_id NUMBER;  -- New variable to store worker ID
 BEGIN
-    -- Check Customer Login
-    BEGIN
-        SELECT customer_id, 'Customer', role_id
-        INTO v_user_id, v_user_type, v_role_id
+    -- Get the role ID
+    SELECT role_id INTO v_role_id FROM user_role WHERE role_name = p_role_name;
+
+    IF p_role_name = 'Customer' THEN
+        -- First, check if user exists
+        SELECT COUNT(*) INTO v_count
         FROM customer
-        WHERE email = p_email AND password_hash = p_password_raw;
+        WHERE (email = p_username OR customer_id = TO_NUMBER(p_username,'9999999999')) 
+        AND password_hash = p_password_raw;
+
+        -- If user exists, fetch the customer ID
+        IF v_count > 0 THEN
+            SELECT customer_id INTO v_user_id
+            FROM customer
+            WHERE (email = p_username OR customer_id = TO_NUMBER(p_username,'9999999999')) 
+            AND password_hash = p_password_raw;
+            
+            v_error_message := 'Customer login successful.';
+            v_action_status := 'Success';
+            DBMS_OUTPUT.PUT_LINE(v_error_message);
+        ELSE
+            v_error_message := 'Invalid Customer credentials.';
+            v_action_status := 'Failed';
+            DBMS_OUTPUT.PUT_LINE(v_error_message);
+            RETURN; -- Exit if login fails
+        END IF;
+
+        -- Check if service exists
+        SELECT COUNT(*) INTO v_service_exists FROM service WHERE service_id = p_service_id;
+
+        IF v_service_exists = 0 THEN
+            DBMS_OUTPUT.PUT_LINE('Service ID ' || p_service_id || ' does not exist.');
+            RETURN;
+        END IF;
+
+        -- Assuming the customer has a vehicle (fetch the first one)
+        SELECT vehicle_id INTO v_vehicle_id
+        FROM vehicle
+        WHERE customer_id = v_user_id
+        AND ROWNUM = 1;
+
+        -- Find an available worker for the selected service
+        SELECT worker_id INTO v_worker_id
+        FROM worker
+        WHERE service_id = p_service_id
+        AND ROWNUM = 1;  -- Pick the first available worker (you can change this logic)
+
+        -- Create an appointment
+        SELECT NVL(MAX(appointment_id), 0) + 1 INTO v_appointment_id FROM appointment;
         
-        v_count := 1; -- Customer found
+        INSERT INTO appointment (appointment_id, customer_id, vehicle_id, service_id, worker_id, appointment_date, status)
+        VALUES (v_appointment_id, v_user_id, v_vehicle_id, p_service_id, v_worker_id, SYSTIMESTAMP, 'Scheduled');
+
+        COMMIT;
+        DBMS_OUTPUT.PUT_LINE('Appointment created successfully. Appointment ID: ' || v_appointment_id || ' Assigned Worker ID: ' || v_worker_id);
+
+    ELSIF p_role_name = 'Worker' THEN
+        -- First, check if worker exists
+        SELECT COUNT(*) INTO v_count
+        FROM worker
+        WHERE (email = p_username OR worker_id = TO_NUMBER(p_username,'9999999999')) 
+        AND password_hash = p_password_raw;
+
+        -- If worker exists, fetch the worker ID
+        IF v_count > 0 THEN
+            SELECT worker_id INTO v_user_id
+            FROM worker
+            WHERE (email = p_username OR worker_id = TO_NUMBER(p_username,'9999999999')) 
+            AND password_hash = p_password_raw;
+            
+            v_error_message := 'Worker login successful.';
+            v_action_status := 'Success';
+            DBMS_OUTPUT.PUT_LINE(v_error_message);
+        ELSE
+            v_error_message := 'Invalid Worker credentials.';
+            v_action_status := 'Failed';
+            DBMS_OUTPUT.PUT_LINE(v_error_message);
+            RETURN;
+        END IF;
+
+    ELSIF p_role_name = 'Admin' THEN
+        -- First, check if admin exists
+        SELECT COUNT(*) INTO v_count
+        FROM admin
+        WHERE (username = p_username OR email = p_username) 
+        AND password_hash = p_password_raw;
+
+        -- If admin exists, fetch the admin ID
+        IF v_count > 0 THEN
+            SELECT admin_id INTO v_user_id
+            FROM admin
+            WHERE (username = p_username OR email = p_username) 
+            AND password_hash = p_password_raw;
+            
+            v_error_message := 'Admin login successful.';
+            v_action_status := 'Success';
+            DBMS_OUTPUT.PUT_LINE(v_error_message);
+        ELSE
+            v_error_message := 'Invalid Admin credentials.';
+            v_action_status := 'Failed';
+            DBMS_OUTPUT.PUT_LINE(v_error_message);
+            RETURN;
+        END IF;
+
+    ELSE
+        v_error_message := 'Invalid role provided.';
+        v_action_status := 'Failed';
+        DBMS_OUTPUT.PUT_LINE(v_error_message);
+        RETURN;
+    END IF;
+
+    -- Log the login attempt
+    BEGIN
+        INSERT INTO audit_log (log_id, action_type, action_details, status, user_type, role_id)
+        VALUES (v_user_id, 'Login and Service Selection', v_error_message, v_action_status, p_role_name, v_role_id);
     EXCEPTION
-        WHEN NO_DATA_FOUND THEN
-            v_count := 0; -- No customer found
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Error logging login attempt: ' || SQLERRM);
     END;
 
-    -- If Customer not found, check Worker Login
-    IF v_count = 0 THEN
-        BEGIN
-            SELECT worker_id, 'Worker', role_id
-            INTO v_user_id, v_user_type, v_role_id
-            FROM worker
-            WHERE email = p_email AND password_hash = p_password_raw;
-            
-            v_count := 1; -- Worker found
-        EXCEPTION
-            WHEN NO_DATA_FOUND THEN
-                v_count := 0; -- No worker found
-        END;
-    END IF;
-
-    -- If Worker not found, check Admin Login
-    IF v_count = 0 THEN
-        BEGIN
-            SELECT admin_id, 'Admin', role_id
-            INTO v_user_id, v_user_type, v_role_id
-            FROM admin
-            WHERE email = p_email AND password_hash = p_password_raw;
-            
-            v_count := 1; -- Admin found
-        EXCEPTION
-            WHEN NO_DATA_FOUND THEN
-                v_count := 0; -- No admin found
-        END;
-    END IF;
-
-    -- Determine login status
-    IF v_count > 0 THEN
-        v_login_status := 'SUCCESS';  -- Login successful
-    ELSE
-        v_login_status := 'FAILED';   -- Login failed
-    END IF;
-
-    -- Insert into audit_log table
-    INSERT INTO audit_log (
-        log_id,                -- Automatically generated log ID
-        action_type,           -- Type of action (LOGIN or FAILED_LOGIN)
-        action_details,        -- Detailed information about the action
-        action_date,           -- Timestamp of the action
-        status,                -- Status of the login (SUCCESS or FAILED)
-        user_type,             -- Type of user (Customer, Worker, Admin)
-        role_id                -- Role ID of the user
-    )
-    VALUES (
-        audit_log_seq.NEXTVAL,  -- Generate new log ID from sequence
-        CASE 
-            WHEN v_login_status = 'SUCCESS' THEN 'LOGIN'
-            ELSE 'FAILED_LOGIN'
-        END,                     -- Determine action type based on login status
-        'User ' || v_user_id || ' (' || v_user_type || ') attempted to log in',  -- Log the details (including user_id for reference)
-        SYSDATE,                 -- Current timestamp for action date
-        v_login_status,         -- Status (SUCCESS or FAILED)
-        v_user_type,            -- User type (Customer, Worker, Admin)
-        v_role_id               -- Role ID (user's role in the system)
-    );
-
-    -- Commit to save the login attempt in audit_log
-    COMMIT;
-
-    -- Output the result
-    IF v_login_status = 'SUCCESS' THEN
-        DBMS_OUTPUT.PUT_LINE('Login successful for user ID: ' || v_user_id);
-    ELSE
-        DBMS_OUTPUT.PUT_LINE('Login failed for email: ' || p_email);
-    END IF;
-    
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
-        -- If no data is found for any of the user types, mark as failed login
-        v_login_status := 'FAILED';
-        
-        -- Insert into audit_log table for failed login attempt
-        INSERT INTO audit_log (
-            log_id,
-            action_type,
-            action_details,
-            action_date,
-            status,
-            user_type,
-            role_id
-        )
-        VALUES (
-            audit_log_seq.NEXTVAL,  -- Generate new log ID
-            'FAILED_LOGIN',         -- Action type is failed login
-            'User attempt to log in failed for email: ' || p_email,  -- Action details
-            SYSDATE,                -- Current timestamp for action date
-            v_login_status,         -- Status is FAILED
-            'Unknown',              -- No user type
-            NULL                    -- No role ID
-        );
-
-        -- Commit to save the failed login attempt in audit_log
-        COMMIT;
-        DBMS_OUTPUT.PUT_LINE('No user found with the provided credentials.');
+        DBMS_OUTPUT.PUT_LINE('Role, vehicle, or worker not found.');
     WHEN OTHERS THEN
-        -- Handle any other errors
-        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+        DBMS_OUTPUT.PUT_LINE('An error occurred: ' || SQLERRM);
 END;
 /
-
 
 
 
