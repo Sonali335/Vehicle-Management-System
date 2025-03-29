@@ -21,7 +21,7 @@ CREATE TABLE user_role (
     role_description VARCHAR2(255)
 );
 
--- Create Customer Table
+
 CREATE TABLE customer (
     customer_id NUMBER PRIMARY KEY,
     first_name VARCHAR2(100) NOT NULL,
@@ -29,16 +29,11 @@ CREATE TABLE customer (
     email VARCHAR2(150),
     phone_number VARCHAR2(20),
     address VARCHAR2(255),
-    password_hash VARCHAR2(255) NOT NULL,
-    role_id NUMBER, 
-    password_hash VARCHAR2(255) NOT NULL,
+    password_hash VARCHAR2(255) NOT NULL,  -- Keep this one
+    role_id NUMBER,
     FOREIGN KEY (role_id) REFERENCES user_role(role_id)
 );
 
-
-
-
--- Create Vehicle Table
 CREATE TABLE vehicle (
     vehicle_id NUMBER PRIMARY KEY,
     customer_id NUMBER,
@@ -49,6 +44,7 @@ CREATE TABLE vehicle (
     license_plate VARCHAR2(20),
     FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
 );
+
 
 -- Create Service Table
 CREATE TABLE service (
@@ -73,9 +69,6 @@ CREATE TABLE worker (
     FOREIGN KEY (service_id) REFERENCES service(service_id),
     FOREIGN KEY (role_id) REFERENCES user_role(role_id)
 );
-
-
-
 
 
 -- Create Service Record Table
@@ -129,7 +122,7 @@ CREATE TABLE inventory_item (
 CREATE TABLE service_inventory (
     service_record_id NUMBER,
     inventory_item_id NUMBER,
-    quantity_used NUMBER, 
+    quantity_used NUMBER,
     PRIMARY KEY (service_record_id, inventory_item_id),
     FOREIGN KEY (service_record_id) REFERENCES service_record(service_record_id),
     FOREIGN KEY (inventory_item_id) REFERENCES inventory_item(inventory_item_id)
@@ -183,6 +176,7 @@ CREATE TABLE audit_log (
     FOREIGN KEY (user_id) REFERENCES admin(admin_id),
     FOREIGN KEY (role_id) REFERENCES user_role(role_id) ON DELETE CASCADE
 );
+
 
 
 
