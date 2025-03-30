@@ -1,0 +1,121 @@
+--Payment Management
+
+-- Sequence for payemnet_id
+CREATE SEQUENCE seq_payment START WITH 1 INCREMENT BY 1;
+
+--Create sequence for invoice_id
+CREATE SEQUENCE seq_invoice START WITH 1 INCREMENT BY 1;
+
+
+--Stored Procedure to Add a New Payment
+CREATE OR REPLACE PROCEDURE add_payment (
+    p_appointment_id NUMBER,
+    p_amount_paid NUMBER,
+    p_payment_method VARCHAR2
+) AS
+    v_payment_id NUMBER;
+BEGIN
+    -- Insert payment record
+    INSERT INTO payment (payment_id, appointment_id, amount_paid, payment_date, payment_method, status)
+    VALUES (SEQ_PAYMENT.NEXTVAL, p_appointment_id, p_amount_paid, SYSDATE, p_payment_method, 'Completed')
+    RETURNING payment_id INTO v_payment_id;
+    DBMS_OUTPUT.PUT_LINE('Payment is done!');
+    COMMIT;
+END;
+/
+
+--example
+set serveroutput on;
+BEGIN
+    add_payment(2, 180.00, 'Debit Card');
+END;
+/
+
+--Function to Get Total Payments for a Customer
+CREATE OR REPLACE FUNCTION get_total_payments (p_customer_id NUMBER) RETURN NUMBER IS
+    v_total NUMBER := 0;
+BEGIN
+    SELECT NVL(SUM(p.amount_paid), 0)
+    INTO v_total
+    FROM payment p
+    JOIN appointment a ON p.appointment_id = a.appointment_id
+    WHERE a.customer_id = p_customer_id;
+
+    RETURN v_total;
+END;
+/
+
+--Example;
+SELECT get_total_payments(1) FROM dual;
+
+--Trigger to Automatically Create an Invoice When a Payment is Added
+CREATE OR REPLACE TRIGGER trg_create_invoice
+AFTER INSERT ON payment
+FOR EACH ROW
+BEGIN
+    INSERT INTO invoice (invoice_id, payment_id, invoice_number, issue_date, total_amount, status)
+    VALUES (SEQ_INVOICE.NEXTVAL, :NEW.payment_id, 'INV-' || TO_CHAR(SYSDATE, 'YYYYMMDD') || '-' || :NEW.payment_id, SYSDATE, :NEW.amount_paid, 'Unpaid');
+    DBMS_OUTPUT.PUT_LINE('Invoice generated successfully');
+END;
+/
+
+--Stored Procedure to Update Payment Status
+CREATE OR REPLACE PROCEDURE update_payment_status (
+    p_payment_id NUMBER,
+    p_new_status VARCHAR2
+) AS
+BEGIN
+    UPDATE payment
+    SET status = p_new_status
+    WHERE payment_id = p_payment_id;
+
+    COMMIT;
+END;
+/
+--example
+set serveroutput on;
+BEGIN
+    update_payment_status(1, 'Completed'); 
+END;
+/
+
+--Trigger to Log Payment Status Changes
+CREATE OR REPLACE TRIGGER trg_log_payment_update
+AFTER UPDATE OF status ON payment
+FOR EACH ROW
+BEGIN
+    INSERT INTO audit_log (log_id, action_type, action_details, action_date, status, user_type, role_id)
+    VALUES (AUDIT_LOG_SEQ.NEXTVAL, 'Payment Update',
+            'Payment ID ' || :OLD.payment_id || ' changed from ' || :OLD.status || ' to ' || :NEW.status,
+            SYSDATE, 'Logged', 'Admin', NULL);
+            DBMS_OUTPUT.PUT_LINE('Payment is updated successfully');
+END;
+/
+
+--Stored Procedure to Refund a Payment
+CREATE OR REPLACE PROCEDURE refund_payment (
+    p_payment_id NUMBER
+) AS
+BEGIN
+    -- Update payment status
+    UPDATE payment
+    SET status = 'Refunded'
+    WHERE payment_id = p_payment_id;
+
+    -- Update invoice status
+    UPDATE invoice
+    SET status = 'Cancelled'
+    WHERE payment_id = p_payment_id;
+
+    COMMIT;
+END;
+/
+
+set serveroutput on;
+BEGIN
+    refund_payment(1);
+END;
+/
+
+
+
