@@ -1,0 +1,42 @@
+SET SERVEROUTPUT ON;
+CREATE OR REPLACE PROCEDURE add_vehicle (
+    p_customer_id NUMBER,
+    p_make VARCHAR2,
+    p_model VARCHAR2,
+    p_year NUMBER,
+    p_vin_number VARCHAR2,
+    p_license_plate VARCHAR2
+) AS
+    v_customer_count NUMBER;
+    v_vehicle_id NUMBER;
+BEGIN
+    -- Check if the customer exists
+    SELECT COUNT(*) INTO v_customer_count FROM customer WHERE customer_id = p_customer_id;
+
+    IF v_customer_count = 0 THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Customer ID ' || p_customer_id || ' does not exist.');
+        RETURN;
+    END IF;
+
+    -- Insert the vehicle
+    SELECT vehicle_seq.NEXTVAL INTO v_vehicle_id FROM DUAL;
+
+    INSERT INTO vehicle (vehicle_id, customer_id, make, model, year, vin_number, license_plate)
+    VALUES (v_vehicle_id, p_customer_id, p_make, p_model, p_year, p_vin_number, p_license_plate);
+
+    COMMIT;
+    DBMS_OUTPUT.PUT_LINE('Vehicle added successfully. Vehicle ID: ' || v_vehicle_id);
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+        ROLLBACK;
+END;
+/
+
+BEGIN
+    add_vehicle(1, 'Toyota', 'Corolla', 2022, 'VIN999999999', 'AB-1234');
+END;
+/
+
+select * from vehicle;
