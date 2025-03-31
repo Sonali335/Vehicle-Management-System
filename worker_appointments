@@ -2,9 +2,9 @@ CREATE OR REPLACE PROCEDURE get_worker_appointments (
     p_worker_id IN NUMBER
 ) AS
 BEGIN
-    DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------------------------------');
-    DBMS_OUTPUT.PUT_LINE('| Appt ID | Customer Name | Vehicle | Service | Date                | Status |');
-    DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('---------------------------------------------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('| Appt ID | Customer Name | Vehicle         | Service     | Date               | Status |');
+    DBMS_OUTPUT.PUT_LINE('---------------------------------------------------------------------------------------------');
 
     FOR rec IN (
         SELECT a.appointment_id, 
@@ -24,11 +24,11 @@ BEGIN
             LPAD(rec.appointment_id, 7) || ' | ' ||
             RPAD(rec.customer_name, 13) || ' | ' ||
             RPAD(rec.vehicle, 15) || ' | ' ||
-            RPAD(rec.service_name, 12) || ' | ' ||
+            RPAD(rec.service_name, 10) || ' | ' ||
             RPAD(rec.appointment_date, 19) || ' | ' ||
-            RPAD(rec.status, 6) || ' |');
+            RPAD(rec.status, 10) || ' |');
     END LOOP;
-    DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('---------------------------------------------------------------------------------------------');
 END;
 /
 
