@@ -115,6 +115,7 @@ BEGIN
             DBMS_OUTPUT.PUT_LINE('Service ID ' || p_service_id || ' does not exist.');
             RETURN;
         END IF;
+    
 
         -- Assuming the customer has a vehicle (fetch the first one)
         SELECT vehicle_id INTO v_vehicle_id
@@ -126,7 +127,7 @@ BEGIN
         SELECT worker_id INTO v_worker_id
         FROM worker
         WHERE service_id = p_service_id
-        AND ROWNUM = 1;  -- Pick the first available worker (you can change this logic)
+        AND ROWNUM = 1;  -- Pick the first available worker 
 
         -- Create an appointment
         SELECT NVL(MAX(appointment_id), 0) + 1 INTO v_appointment_id FROM appointment;
@@ -195,7 +196,7 @@ BEGIN
     -- Log the login attempt
     BEGIN
         INSERT INTO audit_log (log_id, action_type, action_details, status, user_type, role_id)
-        VALUES (v_user_id, 'Login and Service Selection', v_error_message, v_action_status, p_role_name, v_role_id);
+        VALUES (audit_log_seq.NEXTVAL, 'Login and Service Selection', v_error_message, v_action_status, p_role_name, v_role_id);
     EXCEPTION
         WHEN OTHERS THEN
             DBMS_OUTPUT.PUT_LINE('Error logging login attempt: ' || SQLERRM);
