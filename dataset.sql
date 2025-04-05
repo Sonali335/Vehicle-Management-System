@@ -166,16 +166,16 @@ CREATE TABLE invoice (
 -- Create Audit Log Table
 CREATE TABLE audit_log (
     log_id NUMBER PRIMARY KEY,
-    user_id NUMBER,
     action_type VARCHAR2(50),
     action_details VARCHAR2(255),
     action_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR2(50),
     user_type VARCHAR2(20) CHECK (user_type IN ('Customer', 'Worker', 'Admin')),
-    role_id NUMBER,
-    FOREIGN KEY (user_id) REFERENCES admin(admin_id),
-    FOREIGN KEY (role_id) REFERENCES user_role(role_id) ON DELETE CASCADE
+    role_id NUMBER
+    
 );
+
+
 
 
 
