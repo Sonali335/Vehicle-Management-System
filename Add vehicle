@@ -1,4 +1,30 @@
-SET SERVEROUTPUT ON;
+-- Sequence for Customer IDs
+CREATE SEQUENCE customer_seq START WITH 1 INCREMENT BY 1;
+
+-- Sequence for Worker IDs
+CREATE SEQUENCE worker_seq START WITH 1 INCREMENT BY 1;
+
+-- Sequence for Admin IDs
+CREATE SEQUENCE admin_seq START WITH 1 INCREMENT BY 1;
+
+-- Sequence for Audit_log_id
+CREATE SEQUENCE audit_log_seq START WITH 1 INCREMENT BY 1;
+
+-- Sequence for vehicle id
+CREATE SEQUENCE vehicle_seq START WITH 1 INCREMENT BY 1;
+
+-- Sequence for payemnet_id
+CREATE SEQUENCE seq_payment START WITH 1 INCREMENT BY 1;
+
+--Create sequence for invoice_id
+CREATE SEQUENCE seq_invoice START WITH 1 INCREMENT BY 1;
+
+--Create sequence for appointment_id
+CREATE SEQUENCE appointment_seq START WITH 1 INCREMENT BY 1;
+
+--Create sequence for service_record_id_id
+CREATE SEQUENCE service_record_seq START WITH 1 INCREMENT BY 1;
+--Vehicle management
 CREATE OR REPLACE PROCEDURE add_vehicle (
     p_customer_id NUMBER,
     p_make VARCHAR2,
@@ -34,9 +60,241 @@ EXCEPTION
 END;
 /
 
+--Test: Add a Vehicle (also checks trigger and audit log)
+SET SERVEROUTPUT ON;
 BEGIN
-    add_vehicle(1, 'Toyota', 'Corolla', 2022, 'VIN999999999', 'AB-1234');
+    add_vehicle(2,'Toyota','Corolla',2025, 'VIN12345','PB31');
 END;
 /
 
-select * from vehicle;
+
+-- Verify insertion
+SELECT * FROM vehicle;
+
+
+----Audit Log Trigger for  actions on vehicle table
+--CREATE OR REPLACE TRIGGER trg_audit_vehicle_changes_admin
+--AFTER INSERT OR UPDATE OR DELETE ON vehicle
+--FOR EACH ROW
+--DECLARE
+--    v_action VARCHAR2(50);
+--BEGIN
+--    IF INSERTING THEN
+--        v_action := 'INSERT';
+--    ELSIF UPDATING THEN
+--        v_action := 'UPDATE';
+--    ELSIF DELETING THEN
+--        v_action := 'DELETE';
+--    END IF;
+--
+--    INSERT INTO audit_log (
+--        log_id,
+--        action_type,
+--        action_details,
+--        action_date,
+--        status,
+--        user_type,
+--        role_id
+--    ) VALUES (
+--        audit_log_seq.NEXTVAL,
+--        v_action,
+--        'Admin ' || v_action || ' on VEHICLE table',
+--        SYSDATE,
+--        'Success',
+--        'Admin',
+--        1  
+--    );
+--END;
+--/
+
+
+
+--Trigger to Ensure Vehicle License Plate Uniqueness (per Customer)
+CREATE OR REPLACE TRIGGER trg_unique_plate_per_customer
+BEFORE INSERT OR UPDATE ON vehicle
+FOR EACH ROW
+DECLARE
+    v_exists NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO v_exists
+    FROM vehicle
+    WHERE license_plate = :NEW.license_plate
+      AND customer_id = :NEW.customer_id
+      AND vehicle_id != :NEW.vehicle_id;
+
+    IF v_exists > 0 THEN
+        RAISE_APPLICATION_ERROR(-20002, 'Duplicate license plate for this customer.');
+    END IF;
+END;
+/
+
+--Test: Add Duplicate License Plate for Same Customer (should fail)
+BEGIN
+    add_vehicle(1,'Honda','Civic',2021,'VIN67890', 'ABC123');
+END;
+/
+--Prevent Deletion of Vehicle with Appointments
+CREATE OR REPLACE TRIGGER trg_prevent_vehicle_delete_with_appointments
+BEFORE DELETE ON vehicle
+FOR EACH ROW
+DECLARE
+    v_count NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO v_count
+    FROM appointment
+    WHERE vehicle_id = :OLD.vehicle_id;
+
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20003, 'Vehicle has appointments and cannot be deleted.');
+    END IF;
+END;
+/
+
+BEGIN
+    delete_vehicle(1);  
+END;
+/
+
+--Get vehicle by customer id
+CREATE OR REPLACE FUNCTION get_vehicles_by_customer(
+    p_customer_id IN NUMBER
+) RETURN SYS_REFCURSOR AS
+    v_cursor SYS_REFCURSOR;
+BEGIN
+    OPEN v_cursor FOR
+        SELECT * FROM vehicle
+        WHERE customer_id = p_customer_id;
+    RETURN v_cursor;
+END;
+/
+
+--test 
+SET SERVEROUTPUT ON;
+
+DECLARE
+    v_cursor SYS_REFCURSOR;
+
+    -- Declare variables for each column in the vehicle table
+    v_vehicle_id       vehicle.vehicle_id%TYPE;
+    v_customer_id      vehicle.customer_id%TYPE;
+    v_make             vehicle.make%TYPE;
+    v_model            vehicle.model%TYPE;
+    v_year             vehicle.year%TYPE;
+    v_vin              vehicle.vin_number%TYPE;
+    v_license_plate    vehicle.license_plate%TYPE;
+
+BEGIN
+    -- Call the function
+    v_cursor := get_vehicles_by_customer(2);
+
+    -- Fetch and print results
+    LOOP
+        FETCH v_cursor INTO 
+            v_vehicle_id, 
+            v_customer_id, 
+            v_make, 
+            v_model, 
+            v_year, 
+            v_vin, 
+            v_license_plate;
+        EXIT WHEN v_cursor%NOTFOUND;
+
+        DBMS_OUTPUT.PUT_LINE('Vehicle ID: ' || v_vehicle_id ||
+                             ', Customer ID: ' || v_customer_id ||
+                             ', Make: ' || v_make ||
+                             ', Model: ' || v_model ||
+                             ', Year: ' || v_year ||
+                             ', VIN: ' || v_vin ||
+                             ', License Plate: ' || v_license_plate);
+    END LOOP;
+
+    CLOSE v_cursor;
+END;
+/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--Get service history for a vehicle
+CREATE OR REPLACE FUNCTION get_service_history(
+    p_vehicle_id IN NUMBER
+) RETURN SYS_REFCURSOR AS
+    v_cursor SYS_REFCURSOR;
+BEGIN
+    OPEN v_cursor FOR
+        SELECT sr.service_date, s.service_name, s.price, w.first_name || ' ' || w.last_name AS worker_name
+        FROM service_record sr
+        JOIN service s ON sr.service_id = s.service_id
+        JOIN worker w ON sr.worker_id = w.worker_id
+        WHERE sr.vehicle_id = p_vehicle_id
+        ORDER BY sr.service_date DESC;
+    RETURN v_cursor;
+END;
+/
+
+
+--Mark service a s completeed
+CREATE OR REPLACE PROCEDURE complete_service(
+    p_appointment_id IN NUMBER
+) AS
+    v_vehicle_id vehicle.vehicle_id%TYPE;
+    v_service_id service.service_id%TYPE;
+    v_worker_id worker.worker_id%TYPE;
+BEGIN
+    -- Get info from appointment
+    SELECT vehicle_id, service_id, worker_id
+    INTO v_vehicle_id, v_service_id, v_worker_id
+    FROM appointment
+    WHERE appointment_id = p_appointment_id;
+
+    -- Insert into service record
+    INSERT INTO service_record (
+        service_record_id,
+        vehicle_id,
+        service_id,
+        worker_id,
+        service_status
+    ) VALUES (
+        service_record_seq.NEXTVAL,
+        v_vehicle_id,
+        v_service_id,
+        v_worker_id,
+        'Completed'
+    );
+
+    -- Update appointment status
+    UPDATE appointment
+    SET status = 'Completed'
+    WHERE appointment_id = p_appointment_id;
+END;
+/
+
+
+--Delete a Vehicle (Only if no service records)
+CREATE OR REPLACE PROCEDURE delete_vehicle(
+    p_vehicle_id IN NUMBER
+) AS
+    v_count NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO v_count
+    FROM service_record
+    WHERE vehicle_id = p_vehicle_id;
+
+    IF v_count = 0 THEN
+        DELETE FROM vehicle WHERE vehicle_id = p_vehicle_id;
+    ELSE
+        RAISE_APPLICATION_ERROR(-20001, 'Cannot delete vehicle with service records.');
+    END IF;
+END;
+/
+
