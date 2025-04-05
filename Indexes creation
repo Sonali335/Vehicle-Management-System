@@ -1,0 +1,27 @@
+--Indexes for bettter performance
+
+-- Index on foreign key columns for performance improvement
+CREATE INDEX idx_vehicle_customer_id ON vehicle(customer_id);
+CREATE INDEX idx_service_record_vehicle_id ON service_record(vehicle_id);
+CREATE INDEX idx_service_record_worker_id ON service_record(worker_id);
+CREATE INDEX idx_service_record_service_id ON service_record(service_id);
+CREATE INDEX idx_appointment_customer_id ON appointment(customer_id);
+CREATE INDEX idx_appointment_worker_id ON appointment(worker_id);
+CREATE INDEX idx_appointment_vehicle_id ON appointment(vehicle_id);
+CREATE INDEX idx_admin_role_id ON admin(role_id);
+
+-- Index on columns that are frequently queried or filtered by
+CREATE INDEX idx_payment_status ON payment(status);
+CREATE INDEX idx_payment_appointment_id ON payment(appointment_id);
+CREATE INDEX idx_appointment_status ON appointment(status);
+CREATE INDEX idx_appointment_date ON appointment(appointment_date);
+CREATE INDEX idx_service_name ON service(service_name);
+
+-- Composite index for appointment_id and vehicle_id (used in common queries)
+CREATE INDEX idx_appointment_vehicle ON appointment(appointment_id, vehicle_id);
+
+-- Composite index for worker_id and service_id (used in service scheduling)
+CREATE INDEX idx_service_record_worker_service ON service_record(worker_id, service_id);
+
+-- Composite index for payment status and appointment_id (used in payment processing)
+CREATE INDEX idx_payment_status_appointment ON payment(status, appointment_id);
