@@ -1,0 +1,61 @@
+-- check the popularity of service
+CREATE OR REPLACE VIEW vw_service_popularity AS
+SELECT 
+    s.service_id,
+    s.service_name,
+    COUNT(a.appointment_id) AS times_booked
+FROM service s
+LEFT JOIN appointment a ON s.service_id = a.service_id
+GROUP BY s.service_id, s.service_name
+ORDER BY times_booked DESC;
+
+select * from vw_service_popularity;
+
+
+-- worker scheduled
+CREATE OR REPLACE VIEW vw_worker_schedule AS
+SELECT 
+    w.worker_id,
+    w.first_name || ' ' || w.last_name AS worker_name,
+    a.appointment_id,
+    TO_CHAR(a.appointment_date, 'YYYY-MM-DD') AS appointment_date,
+    a.status AS appointment_status
+FROM worker w
+JOIN appointment a ON w.worker_id = a.worker_id;
+
+select * from vw_worker_schedule;
+
+
+-- customer appointments
+CREATE OR REPLACE VIEW vw_customer_appointments AS
+SELECT 
+    c.customer_id,
+    c.first_name || ' ' || c.last_name AS customer_name,
+    a.appointment_id,
+    v.vehicle_id,
+    s.service_name,
+    TO_CHAR(a.appointment_date, 'YYYY-MM-DD') AS appointment_date,
+    a.status
+FROM customer c
+JOIN appointment a ON c.customer_id = a.customer_id
+JOIN vehicle v ON a.vehicle_id = v.vehicle_id
+JOIN service s ON a.service_id = s.service_id;
+
+select * from vw_customer_appointments;
+
+
+-- inventory status
+CREATE OR REPLACE VIEW inventory_stock_status AS
+SELECT 
+    inventory_item_id,
+    supplier_id,
+    quantity_in_stock,
+    minimum_stock_level,
+    CASE 
+        WHEN quantity_in_stock < minimum_stock_level THEN 'LOW'
+        ELSE 'SUFFICIENT'
+    END AS stock_status
+FROM inventory_item;
+
+select * from inventory_stock_status;
+
