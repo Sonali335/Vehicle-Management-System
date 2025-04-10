@@ -17,206 +17,242 @@ CREATE SEQUENCE audit_log_seq START WITH 1 INCREMENT BY 1;
 -- Sequence for vehicle id
 CREATE SEQUENCE vehicle_seq START WITH 1 INCREMENT BY 1;
 
-CREATE OR REPLACE PROCEDURE register_user(
-    p_user_type    VARCHAR2,
-    p_first_name   VARCHAR2,
-    p_last_name    VARCHAR2,
-    p_email        VARCHAR2,
-    p_phone        VARCHAR2,
-    p_password_raw VARCHAR2
+--user management
+--registration of new user
+CREATE OR REPLACE PROCEDURE register_new_user(
+    p_first_name IN VARCHAR2,
+    p_last_name IN VARCHAR2,
+    p_email IN VARCHAR2,
+    p_phone_number IN VARCHAR2,
+    p_address IN VARCHAR2,
+    p_password_hash IN VARCHAR2,
+    p_status IN VARCHAR2 DEFAULT 'Active', -- Admins have a status field
+    p_role_id IN NUMBER, -- Role of the user (Admin, Customer, Worker)
+    p_username IN VARCHAR2 DEFAULT NULL, -- Only for Admin
+    p_service_id IN NUMBER DEFAULT NULL -- Only for Worker
 ) AS
-    v_role_id NUMBER;
-    v_user_id NUMBER;
+    v_new_user_id NUMBER;
 BEGIN
-    -- Assign Role ID based on the user type (Customer, Worker)
-    SELECT role_id INTO v_role_id FROM user_role WHERE role_name = p_user_type;
+    IF p_role_id = 2 THEN
+        -- Register as a customer
+        INSERT INTO customer (customer_id, first_name, last_name, email, phone_number, address, role_id, password_hash)
+        VALUES (customer_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone_number, p_address, p_role_id, p_password_hash);
+        
+        v_new_user_id := customer_seq.CURRVAL;
 
-    -- Insert into respective tables based on user type
-    IF p_user_type = 'Customer' THEN
-        INSERT INTO customer (customer_id, first_name, last_name, email, phone_number, password_hash, role_id)
-        VALUES (customer_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone, p_password_raw, v_role_id)
-        RETURNING customer_id INTO v_user_id;
+    ELSIF p_role_id = 1 THEN
+        -- Register as an admin
+        INSERT INTO admin (admin_id, username, password_hash, email, phone_number, status, role_id)
+        VALUES (admin_seq.NEXTVAL, p_username, p_password_hash, p_email, p_phone_number, p_status, p_role_id);
+        
+        v_new_user_id := admin_seq.CURRVAL;
 
-    ELSIF p_user_type = 'Worker' THEN
-        INSERT INTO worker (worker_id, first_name, last_name, email, phone_number, password_hash, role_id)
-        VALUES (worker_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone, p_password_raw, v_role_id)
-        RETURNING worker_id INTO v_user_id;
+    ELSIF p_role_id = 3 THEN
+        -- Register as a worker
+        INSERT INTO worker (worker_id, first_name, last_name, email, phone_number, password_hash, service_id, role_id)
+        VALUES (worker_seq.NEXTVAL, p_first_name, p_last_name, p_email, p_phone_number, p_password_hash, p_service_id, p_role_id);
+        
+        v_new_user_id := worker_seq.CURRVAL;
     END IF;
+
+    -- Log the registration action into the audit log
+    INSERT INTO audit_log (log_id, action_type, action_details, action_date, status, user_type, role_id)
+    VALUES (audit_log_seq.NEXTVAL, 'Registration', 'User registered: ' || p_email, CURRENT_TIMESTAMP, 'Active', 
+            CASE 
+                WHEN p_role_id = 1 THEN 'Admin'
+                WHEN p_role_id = 2 THEN 'Customer'
+                WHEN p_role_id = 3 THEN 'Worker'
+            END, p_role_id);
 
     COMMIT;
-    DBMS_OUTPUT.PUT_LINE('User Registered Successfully with ID: ' || v_user_id);
-EXCEPTION
-    WHEN OTHERS THEN
-        ROLLBACK;
-        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
 END;
 /
-BEGIN 
-    REGISTER_USER('Customer', 'Kiran', 'Kaur', 'kiran@gmail.com', '999999999', 'my_password'); 
-END;
-/
-BEGIN 
-    REGISTER_USER('Worker', 'Aamn', 'Kaur', 'aamn@gmail.com', '22222222', 'pass3'); 
-END;
-/
-
-
-
-
-* login and appointments
-CREATE OR REPLACE PROCEDURE user_login_and_select_service (
-    p_username VARCHAR2,
-    p_password_raw VARCHAR2,
-    p_role_name VARCHAR2,
-    p_service_id NUMBER -- Input service ID
-) AS
-    v_user_id NUMBER;
-    v_role_id NUMBER;
-    v_count NUMBER;
-    v_error_message VARCHAR2(255);
-    v_action_status VARCHAR2(10);
-    v_login_time TIMESTAMP := SYSTIMESTAMP;
-    v_service_exists NUMBER;
-    v_vehicle_id NUMBER;
-    v_appointment_id NUMBER;
-    v_worker_id NUMBER;  -- New variable to store worker ID
+select * from user_role;
+SELECT * FROM CUSTOMER;
+--FOR CUSTOMER
+SET SERVEROUTPUT ON;
 BEGIN
-    -- Get the role ID
-    SELECT role_id INTO v_role_id FROM user_role WHERE role_name = p_role_name;
+   register_new_user('Sonali','Ambani','sonali@gmail.com','123-123-4444','123 Panahill road','sonali123',NULL,2);
+END;
+/
+select * from worker;
+--FOR WORKER
+SET SERVEROUTPUT ON;
+BEGIN
+   register_new_user('Ramneet','Kaur','ramneet@gmail.com','123-123-3333','123 gore road','ramneet123',NULL,3,NULL,2);
+END;
+/
 
-    IF p_role_name = 'Customer' THEN
-        -- First, check if user exists
-        SELECT COUNT(*) INTO v_count
-        FROM customer
-        WHERE (email = p_username OR customer_id = TO_NUMBER(p_username,'9999999999')) 
-        AND password_hash = p_password_raw;
 
-        -- If user exists, fetch the customer ID
-        IF v_count > 0 THEN
-            SELECT customer_id INTO v_user_id
-            FROM customer
-            WHERE (email = p_username OR customer_id = TO_NUMBER(p_username,'9999999999')) 
-            AND password_hash = p_password_raw;
-            
-            v_error_message := 'Customer login successful.';
-            v_action_status := 'Success';
-            DBMS_OUTPUT.PUT_LINE(v_error_message);
-        ELSE
-            v_error_message := 'Invalid Customer credentials.';
-            v_action_status := 'Failed';
-            DBMS_OUTPUT.PUT_LINE(v_error_message);
-            RETURN; -- Exit if login fails
-        END IF;
-
-        -- Check if service exists
-        SELECT COUNT(*) INTO v_service_exists FROM service WHERE service_id = p_service_id;
-
-        IF v_service_exists = 0 THEN
-            DBMS_OUTPUT.PUT_LINE('Service ID ' || p_service_id || ' does not exist.');
-            RETURN;
-        END IF;
-    
-
-        -- Assuming the customer has a vehicle (fetch the first one)
-        SELECT vehicle_id INTO v_vehicle_id
-        FROM vehicle
-        WHERE customer_id = v_user_id
-        AND ROWNUM = 1;
-
-        -- Find an available worker for the selected service
-        SELECT worker_id INTO v_worker_id
-        FROM worker
-        WHERE service_id = p_service_id
-        AND ROWNUM = 1;  -- Pick the first available worker 
-
-        -- Create an appointment
-        SELECT NVL(MAX(appointment_id), 0) + 1 INTO v_appointment_id FROM appointment;
-        
-        INSERT INTO appointment (appointment_id, customer_id, vehicle_id, service_id, worker_id, appointment_date, status)
-        VALUES (v_appointment_id, v_user_id, v_vehicle_id, p_service_id, v_worker_id, SYSTIMESTAMP, 'Scheduled');
-
-        COMMIT;
-        DBMS_OUTPUT.PUT_LINE('Appointment created successfully. Appointment ID: ' || v_appointment_id || ' Assigned Worker ID: ' || v_worker_id);
-
-    ELSIF p_role_name = 'Worker' THEN
-        -- First, check if worker exists
-        SELECT COUNT(*) INTO v_count
-        FROM worker
-        WHERE (email = p_username OR worker_id = TO_NUMBER(p_username,'9999999999')) 
-        AND password_hash = p_password_raw;
-
-        -- If worker exists, fetch the worker ID
-        IF v_count > 0 THEN
-            SELECT worker_id INTO v_user_id
-            FROM worker
-            WHERE (email = p_username OR worker_id = TO_NUMBER(p_username,'9999999999')) 
-            AND password_hash = p_password_raw;
-            
-            v_error_message := 'Worker login successful.';
-            v_action_status := 'Success';
-            DBMS_OUTPUT.PUT_LINE(v_error_message);
-        ELSE
-            v_error_message := 'Invalid Worker credentials.';
-            v_action_status := 'Failed';
-            DBMS_OUTPUT.PUT_LINE(v_error_message);
-            RETURN;
-        END IF;
-
-    ELSIF p_role_name = 'Admin' THEN
-        -- First, check if admin exists
-        SELECT COUNT(*) INTO v_count
-        FROM admin
-        WHERE (username = p_username OR email = p_username) 
-        AND password_hash = p_password_raw;
-
-        -- If admin exists, fetch the admin ID
-        IF v_count > 0 THEN
-            SELECT admin_id INTO v_user_id
-            FROM admin
-            WHERE (username = p_username OR email = p_username) 
-            AND password_hash = p_password_raw;
-            
-            v_error_message := 'Admin login successful.';
-            v_action_status := 'Success';
-            DBMS_OUTPUT.PUT_LINE(v_error_message);
-        ELSE
-            v_error_message := 'Invalid Admin credentials.';
-            v_action_status := 'Failed';
-            DBMS_OUTPUT.PUT_LINE(v_error_message);
-            RETURN;
-        END IF;
-
-    ELSE
-        v_error_message := 'Invalid role provided.';
-        v_action_status := 'Failed';
-        DBMS_OUTPUT.PUT_LINE(v_error_message);
-        RETURN;
-    END IF;
-
-    -- Log the login attempt
+--For login
+CREATE OR REPLACE PROCEDURE login_a_user (
+    p_email IN VARCHAR2,
+    p_password_hash IN VARCHAR2
+) AS
+    v_role_id NUMBER;
+BEGIN
+    -- Customer Login Check
     BEGIN
-        INSERT INTO audit_log (log_id, action_type, action_details, status, user_type, role_id)
-        VALUES (audit_log_seq.NEXTVAL, 'Login and Service Selection', v_error_message, v_action_status, p_role_name, v_role_id);
+        SELECT role_id INTO v_role_id
+        FROM customer
+        WHERE email = p_email AND password_hash = p_password_hash;
+
+        INSERT INTO audit_log (log_id, action_type, action_details, action_date, status, user_type, role_id)
+        VALUES (audit_log_seq.NEXTVAL, 'Login', 'Customer logged in: ' || p_email, CURRENT_TIMESTAMP, 'Success', 'Customer', v_role_id);
+        COMMIT;
+        RETURN;
     EXCEPTION
-        WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('Error logging login attempt: ' || SQLERRM);
+        WHEN NO_DATA_FOUND THEN
+            NULL;
     END;
 
-EXCEPTION
-    WHEN NO_DATA_FOUND THEN
-        DBMS_OUTPUT.PUT_LINE('Role, vehicle, or worker not found.');
-    WHEN OTHERS THEN
-        DBMS_OUTPUT.PUT_LINE('An error occurred: ' || SQLERRM);
+    -- Admin Login Check
+    BEGIN
+        SELECT role_id INTO v_role_id
+        FROM admin
+        WHERE email = p_email AND password_hash = p_password_hash;
+
+        INSERT INTO audit_log (log_id, action_type, action_details, action_date, status, user_type, role_id)
+        VALUES (audit_log_seq.NEXTVAL, 'Login', 'Admin logged in: ' || p_email, CURRENT_TIMESTAMP, 'Success', 'Admin', v_role_id);
+        COMMIT;
+        RETURN;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            NULL;
+    END;
+
+    -- Worker Login Check
+    BEGIN
+        SELECT role_id INTO v_role_id
+        FROM worker
+        WHERE email = p_email AND password_hash = p_password_hash;
+
+        INSERT INTO audit_log (log_id, action_type, action_details, action_date, status, user_type, role_id)
+        VALUES (audit_log_seq.NEXTVAL, 'Login', 'Worker logged in: ' || p_email, CURRENT_TIMESTAMP, 'Success', 'Worker', v_role_id);
+        COMMIT;
+        RETURN;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            NULL;
+    END;
+
+    -- If no user matched, log failed attempt
+    INSERT INTO audit_log (log_id, action_type, action_details, action_date, status, user_type, role_id)
+    VALUES (audit_log_seq.NEXTVAL, 'Login', 'Failed login attempt for: ' || p_email, CURRENT_TIMESTAMP, 'Failed', 'Customer', NULL);
+    COMMIT;
+END;
+
+
+SELECT * FROM WORKER;
+SET SERVEROUTPUT ON;
+BEGIN
+  login_a_user('gur@gmail.com','gurpreet');
 END;
 /
-set serveroutput on;
+SELECT * FROM CUSTOMER;
+SET SERVEROUTPUT ON;
 BEGIN
-  user_login_and_select_service('kiran@gmail.com', 'my_password', 'Customer', 3);
+  login_a_user('kiran@gmail.com','my_password');
 END;
 /
-set serveroutput on;
+
+--admin logged in 
+SELECT * FROM ADMIN;
+SET SERVEROUTPUT ON;
 BEGIN
-  user_login_and_select_service('sarahc@email.com', 'work_2', 'Worker', NULL);
+  login_a_user('admin@example.com','admin_1');
+END;
+/
+--wrong user
+SET SERVEROUTPUT ON;
+BEGIN
+  login_a_user('nidhi@gmail.com','nidhi');
+END;
+/
+SELECT * FROM AUDIT_LOG;
+
+
+
+--to delete a user
+CREATE OR REPLACE PROCEDURE delete_user_account(
+    p_user_id IN NUMBER,
+    p_user_type IN VARCHAR2 -- 'Customer', 'Admin', 'Worker'
+) AS
+BEGIN
+    IF p_user_type = 'Customer' THEN
+        DELETE FROM customer WHERE customer_id = p_user_id;
+    ELSIF p_user_type = 'Admin' THEN
+        DELETE FROM admin WHERE admin_id = p_user_id;
+    ELSIF p_user_type = 'Worker' THEN
+        DELETE FROM worker WHERE worker_id = p_user_id;
+    END IF;
+
+    -- Log the delete action
+    INSERT INTO audit_log (log_id, action_type, action_details, action_date, status, user_type, role_id)
+    VALUES (audit_log_seq.NEXTVAL, 'Delete', p_user_type || ' account deleted: ' || p_user_id, CURRENT_TIMESTAMP, 'Active', p_user_type, NULL);
+
+    COMMIT;
+END;
+/
+
+
+--execution
+SET SERVEROUTPUT ON;
+BEGIN
+    -- Example for deleting a customer
+    delete_user_account(4,'Customer');
+    -- Example for deleting a worker
+    delete_user_account(5 ,'Worker');
+END;
+/
+select * from customer;
+select * from worker;
+
+
+
+--to update user infrmation
+CREATE OR REPLACE PROCEDURE update_user_info(
+    p_user_id IN NUMBER,
+    p_user_type IN VARCHAR2, -- 'Customer', 'Admin', 'Worker'
+    p_first_name IN VARCHAR2,
+    p_last_name IN VARCHAR2,
+    p_email IN VARCHAR2,
+    p_phone_number IN VARCHAR2,
+    p_address IN VARCHAR2
+) AS
+BEGIN
+    IF p_user_type = 'Customer' THEN
+        UPDATE customer
+        SET first_name = p_first_name, last_name = p_last_name, email = p_email, 
+            phone_number = p_phone_number, address = p_address
+        WHERE customer_id = p_user_id;
+    ELSIF p_user_type = 'Admin' THEN
+        UPDATE admin
+        SET username = p_first_name || ' ' || p_last_name, email = p_email, 
+            phone_number = p_phone_number
+        WHERE admin_id = p_user_id;
+    ELSIF p_user_type = 'Worker' THEN
+        UPDATE worker
+        SET first_name = p_first_name, last_name = p_last_name, email = p_email, 
+            phone_number = p_phone_number
+        WHERE worker_id = p_user_id;
+    END IF;
+
+    -- Log the update action
+    INSERT INTO audit_log (log_id, action_type, action_details, action_date, status, user_type, role_id)
+    VALUES (audit_log_seq.NEXTVAL, 'Update', p_user_type || ' info updated: ' || p_email, CURRENT_TIMESTAMP, 'Active', p_user_type, NULL);
+    
+    COMMIT;
+END;
+/
+SELECT * FROM CUSTOMER;
+SELECT * FROM WORKER;
+--EXECUTION
+BEGIN
+    -- Example: Update a Customer's Info
+    update_user_info(3,'Customer','Kiranjit','Kaur','kiranjit@gmail.com','888-888-8888','123 Main St');
+    -- Example: Update a Worker's Info
+    update_user_info(7,'Worker','Raman','Kaur','raman@gmail.com','555-123-4567','456 Worker Rd, Factory City');
 END;
 /
 
