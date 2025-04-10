@@ -176,7 +176,30 @@ CREATE TABLE audit_log (
 );
 
 
+CREATE SEQUENCE customer_seq START WITH 1 INCREMENT BY 1;
+-- Sequence for Worker IDs
+CREATE SEQUENCE worker_seq START WITH 1 INCREMENT BY 1;
+-- Sequence for Admin IDs
+CREATE SEQUENCE admin_seq START WITH 1 INCREMENT BY 1;
+-- Sequence for Audit_log_id
+CREATE SEQUENCE audit_log_seq START WITH 1 INCREMENT BY 1;
+-- Sequence for vehicle id
+CREATE SEQUENCE vehicle_seq START WITH 1 INCREMENT BY 1;
 
+-- Sequence for payemnet_id
+CREATE SEQUENCE seq_payment START WITH 1 INCREMENT BY 1;
+
+--Create sequence for invoice_id
+CREATE SEQUENCE seq_invoice START WITH 1 INCREMENT BY 1;
+
+--Create sequence for appointment_id
+CREATE SEQUENCE appointment_seq START WITH 1 INCREMENT BY 1;
+
+--Create sequence for service_record_id_id
+CREATE SEQUENCE service_record_seq START WITH 1 INCREMENT BY 1;
+
+--Create sequence for service__id
+CREATE SEQUENCE service_id_seq START WITH 4 INCREMENT BY 1;
 
 
 
