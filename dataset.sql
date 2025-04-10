@@ -180,8 +180,7 @@ CREATE TABLE audit_log (
 
 
 
-
---Insertion:
+--Insertion
 -- Insert into User Role
 INSERT INTO user_role (role_id, role_name, role_description) VALUES (1, 'Customer', 'General customer role');
 INSERT INTO user_role (role_id, role_name, role_description) VALUES (2, 'Worker', 'Service worker role');
@@ -210,6 +209,10 @@ INSERT INTO service (service_id, service_name, service_description, price, durat
 VALUES (2, 'Mechanic', 'Servicing', 60.00, 45);
 INSERT INTO service (service_id, service_name, service_description, price, duration) 
 VALUES (3, 'Cleaner', 'Deep Cleaning', 40.00, 45);
+INSERT INTO service (service_id, service_name, service_description, price, duration)
+VALUES (service_id_seq.NEXTVAL, 'Oil Change', 'Change the oil of your vehicle', 50.00, 30);
+INSERT INTO service (service_id, service_name, service_description, price, duration)
+VALUES (service_id_seq.NEXTVAL, 'Tire Replacement', 'Replace old tires with new ones', 100.00, 60);
 
 -- Insert into Worker
 INSERT INTO worker (worker_id, first_name, last_name, email, phone_number, service_id, password_hash, role_id) 
@@ -224,6 +227,12 @@ INSERT INTO supplier (supplier_id, supplier_name, contact_person, contact_email,
 VALUES (1, 'AutoParts Ltd.', 'Tom Benson', 'tom@autoparts.com', '555-123-4567', '789 Industrial Rd');
 INSERT INTO supplier (supplier_id, supplier_name, contact_person, contact_email, contact_phone, address) 
 VALUES (2, 'QuickFix Supplies', 'Emma Davis', 'emma@quickfix.com', '555-987-6543', '321 Mechanic Ave');
+INSERT INTO supplier (supplier_id, supplier_name, contact_person, contact_email, contact_phone, address)
+VALUES (101, 'Auto Parts Co.', 'John Doe', 'john.doe@autoparts.com', '555-1234', '123 Auto St, City');
+INSERT INTO supplier (supplier_id, supplier_name, contact_person, contact_email, contact_phone, address)
+VALUES (102, 'Car Fixers Inc.', 'Jane Smith', 'jane.smith@carfixers.com', '555-5678', '456 Fix Rd, City');
+INSERT INTO supplier (supplier_id, supplier_name, contact_person, contact_email, contact_phone, address)
+VALUES (103, 'Spare Parts Ltd.', 'Robert Brown', 'robert.brown@spareparts.com', '555-8765', '789 Spare Ave, City');
 
 -- Insert into Inventory Item
 INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level) 
@@ -234,6 +243,26 @@ INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, m
 VALUES (3, 2, 40, 8);  -- Engine oil
 INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level) 
 VALUES (4, 2, 25, 6);  -- Air filters
+INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+VALUES (inventory_item_seq.NEXTVAL, 101, 50, 10); -- Supplier ID 1
+INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+VALUES (inventory_item_seq.NEXTVAL, 102, 30, 5);  -- Supplier ID 2
+INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+VALUES (inventory_item_seq.NEXTVAL, 103, 100, 20); -- Supplier ID 3
+INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+VALUES (inventory_item_seq.NEXTVAL, 101, 5, 2); -- Low stock item
+INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+VALUES (inventory_item_seq.NEXTVAL, 102, 75, 15); -- Supplier ID 4
+INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+VALUES (inventory_item_seq.NEXTVAL, 103, 40, 8);
+INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+VALUES (inventory_item_seq.NEXTVAL, 103, 90, 30);
+INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+VALUES (inventory_item_seq.NEXTVAL,103, 20, 5);
+INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+VALUES (inventory_item_seq.NEXTVAL, 101, 10, 3);
+INSERT INTO inventory_item (inventory_item_id, supplier_id, quantity_in_stock, minimum_stock_level)
+VALUES (inventory_item_seq.NEXTVAL, 102, 200, 50);
 
 -- Insert into Service Record (This must be done before service_inventory)
 INSERT INTO service_record (service_record_id, vehicle_id, service_id, worker_id, service_date, service_status) 
@@ -254,5 +283,7 @@ VALUES (2, 2, 1);  -- Brake pads used in service record 2
 
 INSERT INTO service_inventory (service_record_id, inventory_item_id, quantity_used) 
 VALUES (2, 4, 1);  -- Air filter used in service record 2
+
+
 
 COMMIT;
