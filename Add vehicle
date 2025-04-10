@@ -228,72 +228,6 @@ END;
 
 
 
-
-
-
-
-
-
-
-
-
-
-
---Get service history for a vehicle
-CREATE OR REPLACE FUNCTION get_service_history(
-    p_vehicle_id IN NUMBER
-) RETURN SYS_REFCURSOR AS
-    v_cursor SYS_REFCURSOR;
-BEGIN
-    OPEN v_cursor FOR
-        SELECT sr.service_date, s.service_name, s.price, w.first_name || ' ' || w.last_name AS worker_name
-        FROM service_record sr
-        JOIN service s ON sr.service_id = s.service_id
-        JOIN worker w ON sr.worker_id = w.worker_id
-        WHERE sr.vehicle_id = p_vehicle_id
-        ORDER BY sr.service_date DESC;
-    RETURN v_cursor;
-END;
-/
-
-
---Mark service as completeed
-CREATE OR REPLACE PROCEDURE complete_service(
-    p_appointment_id IN NUMBER
-) AS
-    v_vehicle_id vehicle.vehicle_id%TYPE;
-    v_service_id service.service_id%TYPE;
-    v_worker_id worker.worker_id%TYPE;
-BEGIN
-    -- Get info from appointment
-    SELECT vehicle_id, service_id, worker_id
-    INTO v_vehicle_id, v_service_id, v_worker_id
-    FROM appointment
-    WHERE appointment_id = p_appointment_id;
-
-    -- Insert into service record
-    INSERT INTO service_record (
-        service_record_id,
-        vehicle_id,
-        service_id,
-        worker_id,
-        service_status
-    ) VALUES (
-        service_record_seq.NEXTVAL,
-        v_vehicle_id,
-        v_service_id,
-        v_worker_id,
-        'Completed'
-    );
-
-    -- Update appointment status
-    UPDATE appointment
-    SET status = 'Completed'
-    WHERE appointment_id = p_appointment_id;
-END;
-/
-
-
 --Delete a Vehicle (Only if no service records)
 CREATE OR REPLACE PROCEDURE delete_vehicle(
     p_vehicle_id IN NUMBER
@@ -312,3 +246,17 @@ BEGIN
 END;
 /
 
+--execution
+set serveroutput on;
+BEGIN
+    -- Call the delete_vehicle procedure with vehicle_id = 4
+    delete_vehicle(4);  
+END;
+/
+
+set serveroutput on;
+BEGIN
+    -- Call the delete_vehicle procedure with vehicle_id = 4
+    delete_vehicle(2);  
+END;
+/
