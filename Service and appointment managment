@@ -123,7 +123,7 @@ BEGIN
     UPDATE appointment
     SET status = 'Completed'
     WHERE appointment_id = p_appointment_id
-    AND status = 'In Progress';
+    AND status = 'Scheduled';
     
     COMMIT;
 
