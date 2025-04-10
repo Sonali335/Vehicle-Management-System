@@ -73,11 +73,59 @@ SELECT * FROM vehicle;
 
 
 
+----Audit Log Trigger for  actions on vehicle table
+CREATE OR REPLACE TRIGGER trg_audit_vehicle_changes_admin
+AFTER INSERT OR UPDATE OR DELETE ON vehicle
+FOR EACH ROW
+DECLARE
+    v_action VARCHAR2(50);
+BEGIN
+    IF INSERTING THEN
+        v_action := 'INSERT';
+    ELSIF UPDATING THEN
+        v_action := 'UPDATE';
+    ELSIF DELETING THEN
+        v_action := 'DELETE';
+    END IF;
+
+    INSERT INTO audit_log (
+        log_id,
+        action_type,
+        action_details,
+        action_date,
+        status,
+        user_type,
+        role_id
+    ) VALUES (
+        audit_log_seq.NEXTVAL,
+        v_action,
+        'Admin ' || v_action || ' on VEHICLE table',
+        SYSDATE,
+        'Success',
+        'Admin',
+        1  
+    );
+END;
+/
+
+-- Inserting a new vehicle 
+SET SERVEROUTPUT ON;
+BEGIN
+    add_vehicle(3,'Honda','Civic',2022, '2HGFA165X7H000001','XYZ9876');
+END;
+/
+select * from audit_log;
+--updating a vehicle
+select * from vehicle;
+--updation on vehicle
+UPDATE Vehicle
+SET Year=2021 WHERE Vehicle_id=27;
+
 
 
 --Trigger to Ensure Vehicle License Plate Uniqueness (per Customer)
 CREATE OR REPLACE TRIGGER trg_unique_plate_per_customer
-BEFORE INSERT OR UPDATE ON vehicle
+BEFORE INSERT  ON vehicle
 FOR EACH ROW
 DECLARE
     v_exists NUMBER;
